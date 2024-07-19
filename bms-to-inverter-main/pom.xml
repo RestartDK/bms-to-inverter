@@ -147,6 +147,13 @@
 			<version>${project.version}</version>
 		</dependency>
 
+		<!-- ####################  HAIDI(CAN) ################### -->
+		<dependency>
+			<groupId>com.ai-republic.bms-to-inverter</groupId>
+			<artifactId>bms-haidi-can</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+
 		<!-- ####################  JBD (RS485)  ################### -->
 		<dependency>
 			<groupId>com.ai-republic.bms-to-inverter</groupId>
