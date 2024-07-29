@@ -13,12 +13,15 @@ package com.airepublic.bmstoinverter.configurator;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.event.ActionEvent;
+import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.ServiceLoader;
+import java.util.stream.Stream;
 
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
@@ -30,6 +33,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
 import javax.swing.border.EmptyBorder;
+import javax.swing.event.MouseInputAdapter;
 
 import com.airepublic.bmstoinverter.core.BMSConfig;
 import com.airepublic.bmstoinverter.core.BMSDescriptor;
@@ -39,6 +43,7 @@ public class BMSPanel extends JPanel {
     private final JList<MenuItem<BMSConfig>> bmsList;
     private final DefaultListModel<MenuItem<BMSConfig>> bmsListModel = new DefaultListModel<>();
     private final JTextField pollIntervalField;
+    private final JButton editBMSButton;
     private final NumberInputVerifier numberInputVerifier = new NumberInputVerifier();
 
     public BMSPanel(final JFrame frame) {
@@ -70,6 +75,16 @@ public class BMSPanel extends JPanel {
         bmsList = new JList<>(bmsListModel);
         bmsList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         bmsList.setVisibleRowCount(8);
+        bmsList.addMouseListener(new MouseInputAdapter() {
+
+            @Override
+            public void mouseClicked(final MouseEvent evt) {
+                final JList<MenuItem<BMSConfig>> list = (JList<MenuItem<BMSConfig>>) evt.getSource();
+                if (evt.getClickCount() == 2) {
+                    Stream.of(editBMSButton.getActionListeners()).forEach(listener -> listener.actionPerformed(new ActionEvent(editBMSButton, ActionEvent.ACTION_PERFORMED, "edit")));
+                }
+            }
+        });
         scrollPane.setViewportView(bmsList);
 
         final JButton addBMSButton = new JButton("Add");
@@ -93,7 +108,6 @@ public class BMSPanel extends JPanel {
         removeBMSButton.addActionListener(e -> {
             if (bmsList.getSelectedIndex() != -1) {
                 bmsListModel.remove(bmsList.getSelectedIndex());
-                reindexBMSList();
             }
         });
         final GridBagConstraints gbc_removeBMSButton = new GridBagConstraints();
@@ -102,7 +116,7 @@ public class BMSPanel extends JPanel {
         gbc_removeBMSButton.gridy = 0;
         add(removeBMSButton, gbc_removeBMSButton);
 
-        final JButton editBMSButton = new JButton("Edit");
+        editBMSButton = new JButton("Edit");
         final GridBagConstraints gbc_editBMSButton = new GridBagConstraints();
         gbc_editBMSButton.anchor = GridBagConstraints.NORTH;
         gbc_editBMSButton.insets = new Insets(0, 0, 5, 5);
@@ -151,7 +165,7 @@ public class BMSPanel extends JPanel {
 
             if (item != null) {
                 final BMSConfig config = item.getValue();
-                final BMSConfig duplicate = new BMSConfig(config.getBmsId() + 1, config.getPortLocator(), config.getDelayAfterNoBytes(), config.getDescriptor());
+                final BMSConfig duplicate = new BMSConfig(config.getBmsId() + 1, config.getPortLocator(), config.getBaudRate(), config.getDelayAfterNoBytes(), config.getDescriptor());
 
                 if (item != null) {
                     bmsListModel.addElement(new MenuItem<>(createBMSDisplayName(duplicate), duplicate));
@@ -163,17 +177,6 @@ public class BMSPanel extends JPanel {
 
     private String createBMSDisplayName(final BMSConfig config) {
         return config.getDescriptor().getName() + "(ID: " + config.getBmsId() + ") on " + config.getPortLocator();
-    }
-
-
-    private void reindexBMSList() {
-        for (int i = 0; i < bmsListModel.getSize(); i++) {
-            final MenuItem<BMSConfig> item = bmsListModel.get(i);
-            item.getValue().setBmsId(i);
-            item.setDisplayName(createBMSDisplayName(item.getValue()));
-        }
-
-        bmsList.repaint();
     }
 
 
@@ -215,6 +218,7 @@ public class BMSPanel extends JPanel {
                 + "# bms.pollIntervall - is the interval to request BMS data (in seconds)\n"
                 + "# bms.x.type - can be (DALY_CAN, DALY_RS485, JK_CAN, PYLON_CAN or SEPLOS_CAN \n"
                 + "# bms.x.portLocator - is the locator/device to use to communicate to the BMS, eg. can0, /dev/ttyUSB0, com3, etc.  \n"
+                + "# bms.x.baudRate - is the locator/device baudrate to use to communicate to the BMS, eg. 9600, 500000, etc.  \n"
                 + "# bms.x.delayAfterNoBytes - is the delay after receiving no data (in ms)\n");
         config.append("bms.pollInterval=" + pollIntervalField.getText() + "\n\n");
 
@@ -223,6 +227,7 @@ public class BMSPanel extends JPanel {
             config.append("bms." + index + ".type=" + bmsConfig.getDescriptor().getName() + "\n");
             config.append("bms." + index + ".id=" + bmsConfig.getBmsId() + "\n");
             config.append("bms." + index + ".portLocator=" + bmsConfig.getPortLocator() + "\n");
+            config.append("bms." + index + ".baudRate=" + bmsConfig.getBaudRate() + "\n");
             config.append("bms." + index + ".delayAfterNoBytes=" + bmsConfig.getDelayAfterNoBytes() + "\n");
             config.append("\n");
         }
@@ -239,8 +244,9 @@ public class BMSPanel extends JPanel {
         while ((bmsType = config.getProperty("bms." + index + ".type")) != null) {
             final String portLocator = config.getProperty("bms." + index + ".portLocator");
             final int bmsId = Integer.parseInt(config.getProperty("bms." + index + ".id", "" + index));
+            final int baudRate = Integer.parseInt(config.getProperty("bms." + index + ".baudRate", "" + index));
             final long delayAfterNoBytes = Long.parseLong(config.getProperty("bms." + index + ".delayAfterNoBytes"));
-            final BMSConfig bmsConfig = new BMSConfig(bmsId, portLocator, delayAfterNoBytes, descriptors.get(bmsType));
+            final BMSConfig bmsConfig = new BMSConfig(bmsId, portLocator, baudRate, delayAfterNoBytes, descriptors.get(bmsType));
             bmsListModel.add(index - 1, new MenuItem<>(createBMSDisplayName(bmsConfig), bmsConfig));
 
             index++;
